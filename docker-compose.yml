@@ -1,0 +1,48 @@
+# Local stores. The API, workers and web dev server run on the host under
+# `npm run dev`, so a code change is a restart rather than a rebuild.
+#
+# Redis is commented out because a Homebrew redis on 6379 is a common
+# thing to already have running - uncomment it if you do not, or change
+# REDIS_URL if you run both.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: oction-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: oction-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - '6379:6379'
+  #   volumes:
+  #     - redis-data:/data
+  #   # The live price of every running auction is in here, and the bid
+  #   # log in Mongo is what a lost second can be rebuilt from. everysec
+  #   # is the trade that makes a bid cheap to accept.
+  #   command: >
+  #     redis-server
+  #     --appendonly yes
+  #     --appendfsync everysec
+  #     --save 900 1
+  #   healthcheck:
+  #     test: ['CMD', 'redis-cli', 'ping']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  mongo-data:
+  # redis-data:

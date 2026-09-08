@@ -1,0 +1,7 @@
+node_modules/
+dist/
+uploads/
+.env
+loadtest/fixture.json
+*.log
+.DS_Store

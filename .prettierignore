@@ -1,0 +1,11 @@
+node_modules
+dist
+uploads
+coverage
+package-lock.json
+loadtest/fixture.json
+
+# Markdown is hand-wrapped prose. Prettier reflows it, which turns a
+# one-line documentation edit into a hundred-line diff and buries the
+# actual change.
+*.md
