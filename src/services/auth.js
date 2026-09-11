@@ -1,0 +1,83 @@
+import crypto from 'node:crypto';
+import { promisify } from 'node:util';
+import jwt from 'jsonwebtoken';
+import { config } from '../config.js';
+import { User } from '../db/models/User.js';
+
+const scrypt = promisify(crypto.scrypt);
+
+// scrypt out of node:crypto rather than bcrypt. It is a memory-hard KDF
+// in the standard library, which means no native build step and nothing
+// to rebuild when Node moves - and the parameters are written into the
+// stored string, so they can be raised later without invalidating the
+// hashes already on disk.
+const PARAMS = { N: 16384, r: 8, p: 1, keylen: 64 };
+
+export async function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const derived = await scrypt(password, salt, PARAMS.keylen, PARAMS);
+  return [
+    'scrypt',
+    PARAMS.N,
+    PARAMS.r,
+    PARAMS.p,
+    salt.toString('base64'),
+    derived.toString('base64'),
+  ].join('$');
+}
+
+export async function verifyPassword(password, stored) {
+  if (typeof stored !== 'string') return false;
+  const [scheme, N, r, p, salt, hash] = stored.split('$');
+  if (scheme !== 'scrypt') return false;
+  const expected = Buffer.from(hash, 'base64');
+  const derived = await scrypt(password, Buffer.from(salt, 'base64'), expected.length, {
+    N: Number(N),
+    r: Number(r),
+    p: Number(p),
+  });
+  // Constant time: a comparison that returns early leaks how much of the
+  // hash was right.
+  return crypto.timingSafeEqual(derived, expected);
+}
+
+export function signToken(user) {
+  return jwt.sign({ sub: user._id.toString() }, config.jwtSecret, {
+    expiresIn: config.jwtTtl,
+  });
+}
+
+export function verifyToken(token) {
+  try {
+    return jwt.verify(token, config.jwtSecret);
+  } catch {
+    return null;
+  }
+}
+
+export async function userFromToken(token) {
+  const payload = verifyToken(token);
+  if (!payload?.sub) return null;
+  return User.findById(payload.sub);
+}
+
+export async function register({ email, password, displayName }) {
+  const existing = await User.findOne({ email: email.toLowerCase() });
+  if (existing) return { error: 'email_taken' };
+  const user = await User.create({
+    email: email.toLowerCase(),
+    passwordHash: await hashPassword(password),
+    displayName,
+  });
+  return { user, token: signToken(user) };
+}
+
+export async function login({ email, password }) {
+  const user = await User.findOne({ email: email.toLowerCase() });
+  // Hash anyway on a miss so a missing account and a wrong password take
+  // the same time to answer.
+  const stored = user?.passwordHash ?? (await hashPassword(crypto.randomUUID()));
+  const ok = await verifyPassword(password, stored);
+  if (!user || !ok) return { error: 'bad_credentials' };
+  return { user, token: signToken(user) };
+}
