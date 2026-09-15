@@ -49,5 +49,7 @@ export async function finish(userId, key, status, body) {
 // so a retry is allowed to try again rather than being told it is still
 // in flight for the next ten minutes.
 export async function release(userId, key) {
-  await getRedis().del(keys.idempotency(userId, key)).catch(() => {});
+  await getRedis()
+    .del(keys.idempotency(userId, key))
+    .catch(() => {});
 }

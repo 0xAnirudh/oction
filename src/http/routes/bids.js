@@ -62,7 +62,8 @@ bidsRouter.post('/items/:id/bids', requireAuth, validate(placeBidSchema), async 
     });
 
     if (!result.ok) {
-      if (result.retryAfterMs) res.set('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)));
+      if (result.retryAfterMs)
+        res.set('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)));
       return send(result.status, {
         error: result.code,
         message: result.message,

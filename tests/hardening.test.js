@@ -118,7 +118,9 @@ describe('auth rate limiting', () => {
       const results = [];
       for (let i = 0; i < 6; i += 1) {
         results.push(
-          await app.post('/api/auth/login').send({ email: 'nobody@example.test', password: 'wrong-password' }),
+          await app
+            .post('/api/auth/login')
+            .send({ email: 'nobody@example.test', password: 'wrong-password' }),
         );
       }
       const limited = results.filter((r) => r.status === 429);

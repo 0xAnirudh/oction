@@ -2,6 +2,7 @@ import { Router } from 'express';
 import mongoose from 'mongoose';
 import { AuctionItem } from '../../db/models/AuctionItem.js';
 import { Bid } from '../../db/models/Bid.js';
+import { Watch } from '../../db/models/Watch.js';
 import { ITEM_STATUS } from '../../core/status.js';
 import { minimumBid } from '../../core/increments.js';
 import { config } from '../../config.js';
@@ -87,6 +88,9 @@ itemsRouter.get('/items/:id', async (req, res) => {
 
   const view = await itemWithLiveState(item);
   const isSeller = req.user && item.sellerId.toString() === req.user._id.toString();
+  const watching = req.user
+    ? Boolean(await Watch.exists({ userId: req.user._id, itemId: item._id }))
+    : false;
 
   res.json({
     item: {
@@ -95,6 +99,7 @@ itemsRouter.get('/items/:id', async (req, res) => {
       // The client changes state when the clock enters this window, so
       // it has to be told where the window starts rather than guessing.
       softCloseWindowMs: config.softClose.windowMs,
+      watching,
       ...(isSeller ? { reservePriceCents: item.reservePriceCents } : {}),
     },
     serverNow: Date.now(),

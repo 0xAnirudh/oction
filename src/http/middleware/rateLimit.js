@@ -11,7 +11,9 @@ import { consume } from '../../services/rateLimit.js';
 export function authRateLimit(req, res, next) {
   const { ipMax, ipWindowMs } = config.rateLimit.auth;
 
-  consume([{ name: 'ip', key: keys.authRateIp(req.ip || 'unknown'), max: ipMax, windowMs: ipWindowMs }])
+  consume([
+    { name: 'ip', key: keys.authRateIp(req.ip || 'unknown'), max: ipMax, windowMs: ipWindowMs },
+  ])
     .then((result) => {
       if (result.allowed) return next();
       res.set('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)));

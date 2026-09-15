@@ -44,7 +44,11 @@ export async function verifyPassword(password, stored) {
 }
 
 export function signToken(user) {
-  return jwt.sign({ sub: user._id.toString() }, config.jwtSecret, {
+  // `ms` alongside the standard `iat`, because `iat` is whole seconds
+  // and the session cutoff is not. Without it, every token minted in
+  // the same second as a password reset outlives the reset - a one
+  // second hole in the only mechanism that can end a session early.
+  return jwt.sign({ sub: user._id.toString(), ms: Date.now() }, config.jwtSecret, {
     expiresIn: config.jwtTtl,
   });
 }
@@ -60,7 +64,21 @@ export function verifyToken(token) {
 export async function userFromToken(token) {
   const payload = verifyToken(token);
   if (!payload?.sub) return null;
-  return User.findById(payload.sub);
+
+  const user = await User.findById(payload.sub);
+  if (!user) return null;
+
+  // A JWT cannot be recalled, but it can be outrun. Anything issued
+  // before the account's cutoff is refused, which is what makes a
+  // password reset actually sign out the other devices rather than
+  // only appearing to.
+  if (user.sessionsValidFrom) {
+    const cutoff = user.sessionsValidFrom.getTime();
+    const issued = typeof payload.ms === 'number' ? payload.ms : (payload.iat ?? 0) * 1000;
+    if (issued < cutoff) return null;
+  }
+
+  return user;
 }
 
 export async function register({ email, password, displayName }) {
@@ -71,6 +89,13 @@ export async function register({ email, password, displayName }) {
     passwordHash: await hashPassword(password),
     displayName,
   });
+
+  // Imported here rather than at the top: accounts.js imports
+  // hashPassword from this file, and a cycle at module load would leave
+  // one of the two half-initialised.
+  const { sendVerification } = await import('./accounts.js');
+  await sendVerification(user).catch(() => {});
+
   return { user, token: signToken(user) };
 }
 

@@ -15,6 +15,19 @@ export const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
+export const requestResetSchema = z.object({
+  email: z.email(),
+});
+
+export const confirmTokenSchema = z.object({
+  token: z.string().min(16).max(400),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(16).max(400),
+  password: z.string().min(10).max(200),
+});
+
 export const createItemSchema = z
   .object({
     title: z.string().min(3).max(140),

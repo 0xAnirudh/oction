@@ -43,7 +43,11 @@ export async function consume(buckets, { charge = true } = {}) {
     }
     const parsed = parseRateReply(reply);
     if (!parsed.allowed) {
-      return { allowed: false, retryAfterMs: parsed.retryAfterMs, bucket: live[index].name ?? null };
+      return {
+        allowed: false,
+        retryAfterMs: parsed.retryAfterMs,
+        bucket: live[index].name ?? null,
+      };
     }
   }
 

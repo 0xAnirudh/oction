@@ -6,6 +6,7 @@ import { authRouter } from './routes/auth.js';
 import { itemsRouter } from './routes/items.js';
 import { bidsRouter } from './routes/bids.js';
 import { ordersRouter } from './routes/orders.js';
+import { watchlistRouter } from './routes/watchlist.js';
 import { healthRouter } from './routes/health.js';
 import { log } from '../log.js';
 
@@ -37,6 +38,7 @@ export function createApp() {
   app.use('/api', itemsRouter);
   app.use('/api', bidsRouter);
   app.use('/api', ordersRouter);
+  app.use('/api', watchlistRouter);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'no_such_route' }));
 

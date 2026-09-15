@@ -23,6 +23,16 @@ const userSchema = new mongoose.Schema(
     },
     isAdmin: { type: Boolean, default: false },
 
+    emailVerified: { type: Boolean, default: false },
+    emailVerifiedAt: { type: Date, default: null },
+
+    // Every token issued before this moment is refused. It is the whole
+    // revocation mechanism: a JWT cannot be taken back, but it can be
+    // outrun by a timestamp the server checks on every request. Set on
+    // password reset, so resetting really does sign out the other
+    // devices rather than only appearing to.
+    sessionsValidFrom: { type: Date, default: null },
+
     // Filled in at first checkout and reused as the default afterwards.
     defaultShipping: {
       fullName: String,
@@ -50,6 +60,7 @@ userSchema.methods.toSelf = function toSelf() {
     ...this.toPublic(),
     email: this.email,
     isAdmin: this.isAdmin,
+    emailVerified: this.emailVerified,
     defaultShipping: this.defaultShipping ?? null,
   };
 };
