@@ -236,3 +236,40 @@ export async function payOrder({ order, user, shipping, now = Date.now() }) {
 
   return { order };
 }
+
+// Pull a listing. Staff action, not a seller one - a seller who could
+// withdraw their own lot mid-auction could use it to escape a price
+// they did not like, which is the one thing a binding bid is for.
+export async function withdrawItem(item, reason, staffId) {
+  if ([ITEM_STATUS.SETTLED, ITEM_STATUS.UNSOLD].includes(item.status)) {
+    return { error: 'already_resolved' };
+  }
+
+  // Stop the room taking bids first, then write the record. The other
+  // order leaves a window where Mongo says withdrawn and Redis is still
+  // accepting money.
+  await ensureRoomState(item);
+  await getRedis()
+    .hset(keys.itemState(item._id.toString()), 'status', 'WITHDRAWN')
+    .catch((err) => log.warn('room not stopped on withdrawal', { err: err.message }));
+
+  item.status = ITEM_STATUS.UNSOLD;
+  item.settlement.unsoldReason = UNSOLD_REASON.WITHDRAWN;
+  item.settlement.settledAt = new Date();
+  await item.save();
+
+  // Any live claim on it dies with the listing.
+  await Order.updateMany(
+    { itemId: item._id, status: ORDER_STATUS.PENDING },
+    { $set: { status: ORDER_STATUS.CANCELLED } },
+  );
+
+  emitToRoom(item._id.toString(), EVENTS.ITEM_SETTLED, {
+    itemId: item._id.toString(),
+    status: ITEM_STATUS.UNSOLD,
+    reason: UNSOLD_REASON.WITHDRAWN,
+  });
+
+  log.warn('listing withdrawn', { itemId: item._id.toString(), staffId, reason });
+  return { item };
+}

@@ -24,4 +24,5 @@ export const UNSOLD_REASON = {
   NO_BIDS: 'no_bids',
   RESERVE_NOT_MET: 'reserve_not_met',
   NO_TAKERS: 'all_bidders_failed_checkout',
+  WITHDRAWN: 'withdrawn_by_staff',
 };

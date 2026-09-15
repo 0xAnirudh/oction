@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { config } from '../config.js';
 import { CONDITIONS } from '../core/status.js';
+import { DISPUTE_REASONS } from '../db/models/Dispute.js';
 
 const cents = z.number().int().min(1).max(config.maxBidCents);
 
@@ -32,6 +33,24 @@ export const notifyPrefsSchema = z.object({
   outbid: z.boolean().optional(),
   won: z.boolean().optional(),
   closingSoon: z.boolean().optional(),
+});
+
+export const openDisputeSchema = z.object({
+  reason: z.enum(DISPUTE_REASONS),
+  detail: z.string().max(4000).default(''),
+});
+
+export const resolveDisputeSchema = z.object({
+  outcome: z.enum(['buyer', 'seller']),
+  resolution: z.string().min(1).max(4000),
+});
+
+export const sellerDecisionSchema = z.object({
+  note: z.string().max(500).optional(),
+});
+
+export const withdrawItemSchema = z.object({
+  reason: z.string().min(1).max(500),
 });
 
 export const createItemSchema = z

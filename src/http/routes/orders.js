@@ -5,7 +5,8 @@ import { AuctionItem } from '../../db/models/AuctionItem.js';
 import { ORDER_STATUS } from '../../core/status.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/authenticate.js';
-import { checkoutSchema } from '../schemas.js';
+import { checkoutSchema, openDisputeSchema } from '../schemas.js';
+import { Dispute } from '../../db/models/Dispute.js';
 import { payOrder } from '../../services/settlement.js';
 
 export const ordersRouter = Router();
@@ -93,3 +94,63 @@ ordersRouter.post(
     res.json({ order: result.order.toPublic() });
   },
 );
+
+// --- disputes -------------------------------------------------------
+
+ordersRouter.post(
+  '/orders/:id/dispute',
+  requireAuth,
+  validate(openDisputeSchema),
+  async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id))
+      return res.status(404).json({ error: 'not_found' });
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'not_found' });
+
+    if (order.buyerId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'not_yours' });
+    }
+    // Nothing to dispute until money has moved. An unpaid order already
+    // has an outcome - it expires and the lot rolls down.
+    if (order.status !== ORDER_STATUS.PAID) {
+      return res.status(409).json({
+        error: 'not_paid',
+        message: 'A dispute can only be raised on an order that has been paid.',
+      });
+    }
+
+    try {
+      const dispute = await Dispute.create({
+        orderId: order._id,
+        itemId: order.itemId,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        reason: req.valid.body.reason,
+        detail: req.valid.body.detail,
+      });
+      return res.status(201).json({ dispute: dispute.toPublic() });
+    } catch (err) {
+      // The partial unique index: one live dispute per order.
+      if (err?.code === 11000) {
+        return res.status(409).json({
+          error: 'already_open',
+          message: 'There is already an open dispute on this order.',
+        });
+      }
+      throw err;
+    }
+  },
+);
+
+ordersRouter.get('/orders/:id/dispute', requireAuth, async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id))
+    return res.status(404).json({ error: 'not_found' });
+  const dispute = await Dispute.findOne({ orderId: req.params.id }).sort({ createdAt: -1 });
+  if (!dispute) return res.status(404).json({ error: 'not_found' });
+
+  const mine = [dispute.buyerId.toString(), dispute.sellerId.toString()].includes(
+    req.user._id.toString(),
+  );
+  if (!mine && !req.user.isAdmin) return res.status(403).json({ error: 'not_yours' });
+  res.json({ dispute: dispute.toPublic() });
+});

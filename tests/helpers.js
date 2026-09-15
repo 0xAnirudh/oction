@@ -36,7 +36,7 @@ export async function resetData() {
 
 let counter = 0;
 
-export async function makeUser(app, { seller = false } = {}) {
+export async function makeUser(app, { seller = false, admin = false, verified = false } = {}) {
   counter += 1;
   const email = `person${counter}@example.test`;
   const res = await app.post('/api/auth/register').send({
@@ -47,9 +47,12 @@ export async function makeUser(app, { seller = false } = {}) {
   if (res.status !== 201)
     throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);
 
-  if (seller) {
-    await User.updateOne({ email }, { $set: { sellerStatus: 'verified' } });
-  }
+  const set = {};
+  if (seller) set.sellerStatus = 'verified';
+  if (admin) set.isAdmin = true;
+  if (seller || admin || verified) set.emailVerified = true;
+  if (Object.keys(set).length) await User.updateOne({ email }, { $set: set });
+
   return { ...res.body.user, token: res.body.token, email };
 }
 

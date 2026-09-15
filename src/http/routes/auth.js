@@ -125,3 +125,22 @@ authRouter.patch(
     res.json({ user: req.user.toSelf() });
   },
 );
+
+// --- asking to become a seller ---------------------------------------
+
+authRouter.post('/me/seller-application', requireAuth, async (req, res) => {
+  if (req.user.sellerStatus === 'verified') {
+    return res.json({ user: req.user.toSelf() });
+  }
+  // A confirmed address first. Verification is a human looking at the
+  // account, and they need a way to reach it that is known to work.
+  if (!req.user.emailVerified) {
+    return res.status(409).json({
+      error: 'email_not_verified',
+      message: 'Confirm your email address before applying to sell.',
+    });
+  }
+  req.user.sellerStatus = 'pending';
+  await req.user.save();
+  res.json({ user: req.user.toSelf() });
+});

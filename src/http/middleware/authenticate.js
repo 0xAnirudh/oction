@@ -34,3 +34,11 @@ export function requireSeller(req, res, next) {
   }
   next();
 }
+
+export function requireAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'authentication_required' });
+  // Deliberately a 404 rather than a 403. Telling a signed-in stranger
+  // that an admin route exists is telling them what to go looking for.
+  if (!req.user.isAdmin) return res.status(404).json({ error: 'no_such_route' });
+  next();
+}
