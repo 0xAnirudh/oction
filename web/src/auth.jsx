@@ -29,10 +29,26 @@ export function AuthProvider({ children }) {
     return res.user;
   }, []);
 
+  // Re-read the account after something changes it server-side - an
+  // application to sell, a confirmed address - so the rest of the
+  // interface stops showing the old state.
+  const refresh = useCallback(
+    () =>
+      api
+        .get('/auth/me')
+        .then((res) => {
+          setUser(res.user);
+          return res.user;
+        })
+        .catch(() => null),
+    [],
+  );
+
   const value = useMemo(
     () => ({
       user,
       ready,
+      refresh,
       signIn: (body) => api.post('/auth/login', body).then(adopt),
       signUp: (body) => api.post('/auth/register', body).then(adopt),
       signOut: () => {
@@ -41,7 +57,7 @@ export function AuthProvider({ children }) {
         resetSocket();
       },
     }),
-    [user, ready, adopt],
+    [user, ready, adopt, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -8,6 +8,11 @@ import { Orders } from './pages/Orders.jsx';
 import { SellerDashboard } from './pages/SellerDashboard.jsx';
 import { NewListing } from './pages/NewListing.jsx';
 import { SignIn } from './pages/SignIn.jsx';
+import { Watchlist } from './pages/Watchlist.jsx';
+import { Settings } from './pages/Settings.jsx';
+import { Admin } from './pages/Admin.jsx';
+import { Verify } from './pages/Verify.jsx';
+import { Reset } from './pages/Reset.jsx';
 
 function Private({ children }) {
   const { user, ready } = useAuth();
@@ -25,6 +30,32 @@ export default function App() {
         <Route path="/lot/:id" element={<ItemRoom />} />
         <Route path="/lot/:id/audit" element={<Audit />} />
         <Route path="/sign-in" element={<SignIn />} />
+        <Route path="/verify" element={<Verify />} />
+        <Route path="/reset" element={<Reset />} />
+        <Route
+          path="/watching"
+          element={
+            <Private>
+              <Watchlist />
+            </Private>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <Private>
+              <Settings />
+            </Private>
+          }
+        />
+        <Route
+          path="/staff"
+          element={
+            <Private>
+              <Admin />
+            </Private>
+          }
+        />
         <Route
           path="/orders"
           element={

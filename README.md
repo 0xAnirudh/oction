@@ -71,20 +71,37 @@ it rather than read off a field.
 arithmetic on dollars eventually rejects `40.15` for being under `40.15`.
 It will do it once, in production, at the close of something expensive.
 
+**A bid can be repeated without being repeated.** The Lua script makes a
+bid atomic; it does not make it unrepeatable, and those are different
+problems. A phone that changes network between sending a bid and reading
+the reply has no way to know whether it landed, and the honest thing for
+it to do is send it again - which walks the price up twice for one
+intent. An `Idempotency-Key` closes that, scoped per lot, replaying the
+original answer rather than retrying the action.
+
+**A password reset really does sign out the other devices.** A JWT
+cannot be recalled, so each account carries a cutoff and every token
+issued before it is refused. The token carries a millisecond claim of
+its own, because `iat` is whole seconds and the rounding left a one
+second window where a token minted during the reset outlived it.
+
 ---
 
 ## Layout
 
 ```
-src/redis/lua/         four scripts: bid, close, ensure_state, rate_limit
-src/services/          bidding, settlement, catalog, auth
+src/redis/lua/         five scripts: bid, close, ensure_state, rate_limit,
+                       idempotency
+src/services/          bidding, settlement, catalog, auth, accounts,
+                       notifications, rate limiting, idempotency
 src/queue/             BullMQ workers, and the sweep that catches lost jobs
 src/realtime/          socket.io rooms, keyed auction:{itemId}
-src/db/models/         User, AuctionItem, Bid, Order
+src/mail/              two drivers and the message templates
+src/db/models/         User, AuctionItem, Bid, Order, Watch, Token, Dispute
 src/core/              the increment ladder and money, shared with the web
 web/src/               React, Tailwind, one socket per room
 loadtest/              the storm, in k6 and in plain Node
-tests/                 29 tests
+tests/                 70 tests
 ```
 
 ```bash
@@ -134,11 +151,20 @@ path only used in development.
 
 - **Checkout is simulated.** `payOrder` fills a `paymentRef` and moves
   the order to PAID. A real processor slots in there, with the status
-  moving on its webhook rather than in the request.
-- **Seller verification is a flag,** set by hand. There is no admin UI
-  behind it.
-- **No email.** Winning a lot puts it on `/orders` with a clock; nobody
-  is told.
+  moving on its webhook rather than in the request - and the webhook has
+  to be reconciled against the checkout-expiry job, which can be rolling
+  the lot down to the runner-up at the same moment the payment confirms.
+- **Nobody is ever paid.** Taking money from a buyer and paying a seller
+  are different problems, and only the first one is even sketched here.
+  The second means KYC per seller, a platform fee, and payouts that a
+  processor may hold.
+- **Deciding a dispute for the buyer refunds nothing.** It records the
+  decision, which is what a refund would hang off once there is money to
+  refund.
 - **Rate limits are per-process-honest but proxy-naive.** Behind a load
   balancer, set `trust proxy` correctly or the per-IP ceiling applies to
   the balancer and throttles the whole site to twelve bids a second.
+- **Sessions cannot be revoked individually,** only all at once per
+  account. There is no refresh-token rotation and no per-device list.
+- **Nothing stops shill bidding through a second account.** A seller's
+  own account is blocked from their lots; an alt is not.

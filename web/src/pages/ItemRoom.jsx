@@ -8,6 +8,7 @@ import { Carousel } from '../components/Carousel.jsx';
 import { BidPanel } from '../components/BidPanel.jsx';
 import { BidLog } from '../components/BidLog.jsx';
 import { Countdown, useRemaining } from '../components/Countdown.jsx';
+import { WatchButton } from '../components/WatchButton.jsx';
 import { SpecRow, Button } from '../components/ui.jsx';
 
 const CLOSED = new Set(['ENDED', 'SETTLED', 'UNSOLD']);
@@ -163,7 +164,16 @@ export function ItemRoom() {
       <div>
         <Carousel images={item.images} title={item.title} />
 
-        <h1 className="display mt-8 text-4xl leading-tight text-ink sm:text-5xl">{item.title}</h1>
+        <div className="mt-8 flex items-start justify-between gap-6">
+          <h1 className="display text-4xl leading-tight text-ink sm:text-5xl">{item.title}</h1>
+          {user && (
+            <WatchButton
+              itemId={item.id}
+              watching={item.watching}
+              onChange={(watching) => setItem((prev) => (prev ? { ...prev, watching } : prev))}
+            />
+          )}
+        </div>
         {item.description && (
           <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-graphite">
             {item.description}

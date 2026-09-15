@@ -22,12 +22,20 @@ export function Shell({ children }) {
             </NavLink>
             {user && (
               <>
+                <NavLink to="/watching" className={linkClass}>
+                  Watching
+                </NavLink>
                 <NavLink to="/orders" className={linkClass}>
                   Won
                 </NavLink>
                 <NavLink to="/selling" className={linkClass}>
                   Selling
                 </NavLink>
+                {user.isAdmin && (
+                  <NavLink to="/staff" className={linkClass}>
+                    Staff
+                  </NavLink>
+                )}
               </>
             )}
           </nav>
@@ -35,7 +43,12 @@ export function Shell({ children }) {
           <div className="ml-auto flex items-center gap-4">
             {user ? (
               <>
-                <span className="hidden text-sm text-graphite sm:inline">{user.displayName}</span>
+                <Link
+                  to="/settings"
+                  className="hidden text-sm text-graphite hover:text-ink sm:inline"
+                >
+                  {user.displayName}
+                </Link>
                 <button
                   type="button"
                   onClick={() => {

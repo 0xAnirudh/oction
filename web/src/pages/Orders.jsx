@@ -123,6 +123,8 @@ function OrderRow({ order, offsetRef, onPaid }) {
         )}
       </div>
 
+      {order.status === 'PAID' && <DisputePanel order={order} />}
+
       {pending && (
         <form onSubmit={submit} className="mt-6 grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
