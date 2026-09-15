@@ -16,7 +16,12 @@
 -- ARGV[5] softCloseExtendMs
 -- ARGV[6] maxBidCents      -- fat-finger ceiling
 --
--- Returns {ok, code, highBid, winnerId, bidCount, seq, endsAt, extended, nextMinimum}
+-- Returns {ok, code, highBid, winnerId, bidCount, seq, endsAt, extended,
+--          nextMinimum, previousWinnerId}
+--
+-- The previous winner comes back from here rather than being read
+-- separately afterwards: by the time a second read ran, another bid
+-- could have moved the lead again and the wrong person gets the email.
 
 -- Kept in step with src/core/increments.js by tests/increments.test.js,
 -- which walks both across the same prices and compares.
@@ -55,10 +60,10 @@ local function minimum()
 end
 
 local function fail(code)
-  return {0, code, highBid, winnerId, bidCount, seq, endsAt, 0, minimum()}
+  return {0, code, highBid, winnerId, bidCount, seq, endsAt, 0, minimum(), ''}
 end
 
-if not status then return {0, 'not_found', 0, '', 0, 0, 0, 0, 0} end
+if not status then return {0, 'not_found', 0, '', 0, 0, 0, 0, 0, ''} end
 if status == 'UPCOMING' or now < startsAt then return fail('not_started') end
 if status ~= 'ACTIVE' then return fail('not_active') end
 if now >= endsAt then return fail('closed') end
@@ -66,6 +71,8 @@ if bidder == sellerId then return fail('seller') end
 if bidder == winnerId then return fail('already_leading') end
 if amount > maxBid then return fail('above_cap') end
 if amount < minimum() then return fail('too_low') end
+
+local previousWinner = winnerId
 
 seq = redis.call('HINCRBY', KEYS[1], 'seq', 1)
 bidCount = redis.call('HINCRBY', KEYS[1], 'bidCount', 1)
@@ -92,4 +99,4 @@ redis.call('HSET', KEYS[1],
 -- Outlive the auction by a day so settlement can still read the room.
 redis.call('PEXPIREAT', KEYS[1], endsAt + 86400000)
 
-return {1, 'ok', highBid, winnerId, bidCount, seq, endsAt, extended, minimum()}
+return {1, 'ok', highBid, winnerId, bidCount, seq, endsAt, extended, minimum(), previousWinner}

@@ -6,6 +6,7 @@ import {
   confirmTokenSchema,
   loginSchema,
   registerSchema,
+  notifyPrefsSchema,
   requestResetSchema,
   resetPasswordSchema,
 } from '../schemas.js';
@@ -106,5 +107,21 @@ authRouter.post(
     // A fresh session for the device that did the reset; every other
     // token for this account is now refused.
     res.json({ token: signToken(result.user), user: result.user.toSelf() });
+  },
+);
+
+// --- notification preferences ---------------------------------------
+
+authRouter.patch(
+  '/me/notifications',
+  requireAuth,
+  validate(notifyPrefsSchema),
+  async (req, res) => {
+    const wanted = req.valid.body;
+    for (const key of ['outbid', 'won', 'closingSoon']) {
+      if (typeof wanted[key] === 'boolean') req.user.notify[key] = wanted[key];
+    }
+    await req.user.save();
+    res.json({ user: req.user.toSelf() });
   },
 );

@@ -8,6 +8,8 @@ export const JOBS = {
   CLOSE: 'auction-close',
   CHECKOUT_EXPIRY: 'checkout-expiry',
   ACTIVATE: 'activate-due',
+  NOTIFY: 'notify',
+  CLOSING_SOON: 'closing-soon',
 };
 
 let queue;
@@ -52,6 +54,33 @@ export async function scheduleAuctionClose(itemId, endsAtMs) {
     },
   );
   log.debug('close scheduled', { itemId, delay });
+}
+
+// Notices are fire-and-forget from the caller's point of view. Three
+// attempts with backoff, because a transient failure at the mail
+// provider should not silently lose someone's "you won" email.
+export async function enqueueNotice(notice) {
+  const q = getQueue();
+  await q.add(JOBS.NOTIFY, notice, {
+    removeOnComplete: true,
+    removeOnFail: 500,
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5_000 },
+  });
+}
+
+export async function scheduleClosingSoon(itemId, fireAtMs, leadMs) {
+  const q = getQueue();
+  await q.add(
+    JOBS.CLOSING_SOON,
+    { itemId, leadMs },
+    {
+      jobId: `soon-${itemId}-${fireAtMs}`,
+      delay: Math.max(0, fireAtMs - Date.now()),
+      removeOnComplete: true,
+      removeOnFail: 100,
+    },
+  );
 }
 
 export async function scheduleCheckoutExpiry(orderId, expiresAtMs) {

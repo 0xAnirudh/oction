@@ -8,6 +8,8 @@ import { AuctionItem } from '../db/models/AuctionItem.js';
 import { ensureRoomState } from './catalog.js';
 import { EVENTS } from '../realtime/events.js';
 import { emitToRoom } from '../realtime/io.js';
+import { enqueueNotice } from '../queue/index.js';
+import { NOTICES } from './notifications.js';
 import { log } from '../log.js';
 
 export const REJECTION_TEXT = {
@@ -141,6 +143,17 @@ export async function placeBid({ item, bidder, amountCents, ip }) {
   };
 
   emitToRoom(itemId, EVENTS.BID_ACCEPTED, accepted);
+
+  // Whoever just lost the lead hears about it, on the queue. A bid is
+  // answered in milliseconds and must not wait on a mail server.
+  if (reply.previousWinnerId && reply.previousWinnerId !== bidderId) {
+    enqueueNotice({
+      kind: NOTICES.OUTBID,
+      userId: reply.previousWinnerId,
+      itemId,
+      amountCents: reply.highBidCents,
+    }).catch((err) => log.warn('outbid notice not queued', { itemId, err: err.message }));
+  }
   if (reply.extended) {
     // The countdown everyone is watching moved. Telling the room is not
     // optional - a client still counting to the old number will show a

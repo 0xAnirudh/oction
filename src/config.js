@@ -65,6 +65,13 @@ export const config = {
   // Where the emails point people back to.
   appUrl: str(process.env.APP_URL, 'http://localhost:5175'),
 
+  notifications: {
+    // How far ahead of the close a watchlist notice goes out. Long
+    // enough to act on, short enough that a soft-close extension has
+    // not usually happened yet.
+    closingSoonLeadMs: int(process.env.CLOSING_SOON_LEAD_MS, 5 * 60 * 1000),
+  },
+
   tokens: {
     verifyTtlMs: int(process.env.VERIFY_TTL_MS, 24 * 60 * 60 * 1000),
     resetTtlMs: int(process.env.RESET_TTL_MS, 60 * 60 * 1000),

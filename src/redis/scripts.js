@@ -39,6 +39,7 @@ export function parseBidReply(reply) {
     endsAt: num(reply[6]),
     extended: num(reply[7]) === 1,
     nextMinimumCents: num(reply[8]),
+    previousWinnerId: str(reply[9]),
   };
 }
 

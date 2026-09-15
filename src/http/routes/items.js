@@ -18,7 +18,7 @@ import {
   mergeLiveState,
 } from '../../services/catalog.js';
 import { uploadAll, getStorage } from '../../media/storage.js';
-import { scheduleAuctionClose } from '../../queue/index.js';
+import { scheduleAuctionClose, scheduleClosingSoon } from '../../queue/index.js';
 import { log } from '../../log.js';
 
 export const itemsRouter = Router();
@@ -180,8 +180,11 @@ itemsRouter.post('/items', requireSeller, validate(createItemSchema), async (req
   });
 
   if (item.status === ITEM_STATUS.ACTIVE) {
+    const endsAt = new Date(item.endTime).getTime();
     await ensureRoomState(item);
-    await scheduleAuctionClose(item._id.toString(), new Date(item.endTime).getTime());
+    await scheduleAuctionClose(item._id.toString(), endsAt);
+    const lead = config.notifications.closingSoonLeadMs;
+    await scheduleClosingSoon(item._id.toString(), endsAt - lead, lead);
   }
 
   log.info('item listed', {

@@ -10,7 +10,8 @@ import { ensureRoomState } from './catalog.js';
 import { biddersByRank } from './bidding.js';
 import { EVENTS } from '../realtime/events.js';
 import { emitToRoom } from '../realtime/io.js';
-import { scheduleCheckoutExpiry } from '../queue/index.js';
+import { enqueueNotice, scheduleCheckoutExpiry } from '../queue/index.js';
+import { NOTICES } from './notifications.js';
 import { log } from '../log.js';
 
 // Bring an auction to a stop and decide what happens to the item.
@@ -132,6 +133,10 @@ async function offerToRank(item, rank) {
   await item.save();
 
   await scheduleCheckoutExpiry(order._id.toString(), expiresAt.getTime());
+  await enqueueNotice({
+    kind: rank === 1 ? NOTICES.WON : NOTICES.ROLLED_DOWN,
+    orderId: order._id.toString(),
+  }).catch((err) => log.warn('win notice not queued', { err: err.message }));
 
   const event = rank === 1 ? EVENTS.AUCTION_ENDED : EVENTS.CHECKOUT_ROLLED;
   emitToRoom(item._id.toString(), event, {

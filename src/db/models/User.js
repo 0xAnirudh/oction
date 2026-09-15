@@ -33,6 +33,15 @@ const userSchema = new mongoose.Schema(
     // devices rather than only appearing to.
     sessionsValidFrom: { type: Date, default: null },
 
+    // Sending mail nobody asked for is how a domain stops being
+    // delivered at all, so every notice has an off switch and the
+    // settings live with the account rather than in a list somewhere.
+    notify: {
+      outbid: { type: Boolean, default: true },
+      won: { type: Boolean, default: true },
+      closingSoon: { type: Boolean, default: true },
+    },
+
     // Filled in at first checkout and reused as the default afterwards.
     defaultShipping: {
       fullName: String,
@@ -61,6 +70,11 @@ userSchema.methods.toSelf = function toSelf() {
     email: this.email,
     isAdmin: this.isAdmin,
     emailVerified: this.emailVerified,
+    notify: {
+      outbid: this.notify?.outbid ?? true,
+      won: this.notify?.won ?? true,
+      closingSoon: this.notify?.closingSoon ?? true,
+    },
     defaultShipping: this.defaultShipping ?? null,
   };
 };

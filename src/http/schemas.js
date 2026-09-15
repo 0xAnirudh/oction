@@ -28,6 +28,12 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(10).max(200),
 });
 
+export const notifyPrefsSchema = z.object({
+  outbid: z.boolean().optional(),
+  won: z.boolean().optional(),
+  closingSoon: z.boolean().optional(),
+});
+
 export const createItemSchema = z
   .object({
     title: z.string().min(3).max(140),
