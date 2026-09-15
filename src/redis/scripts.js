@@ -10,10 +10,11 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(path.join(dir, 'lua', name), 'utf8');
 
 const DEFINITIONS = [
-  ['bpBid', 1, 'bid.lua'],
-  ['bpEnsureState', 1, 'ensure_state.lua'],
-  ['bpClose', 1, 'close.lua'],
-  ['bpRateLimit', 1, 'rate_limit.lua'],
+  ['ocBid', 1, 'bid.lua'],
+  ['ocEnsureState', 1, 'ensure_state.lua'],
+  ['ocClose', 1, 'close.lua'],
+  ['ocRateLimit', 1, 'rate_limit.lua'],
+  ['ocIdempotency', 1, 'idempotency.lua'],
 ];
 
 export function attachScripts(redis) {

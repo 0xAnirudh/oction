@@ -1,8 +1,8 @@
-import crypto from 'node:crypto';
 import { config } from '../config.js';
 import { getRedis } from '../redis/client.js';
 import { keys } from '../redis/keys.js';
-import { parseBidReply, parseRateReply } from '../redis/scripts.js';
+import { parseBidReply } from '../redis/scripts.js';
+import { consume } from './rateLimit.js';
 import { Bid } from '../db/models/Bid.js';
 import { AuctionItem } from '../db/models/AuctionItem.js';
 import { ensureRoomState } from './catalog.js';
@@ -36,34 +36,12 @@ const HTTP_STATUS = {
 
 // Two windows, one round trip. The per-user limit is the real one; the
 // per-IP limit is a backstop for a script cycling throwaway accounts.
-async function checkRate(userId, ip) {
-  const redis = getRedis();
-  const now = Date.now();
-  const member = `${now}:${crypto.randomUUID()}`;
+function checkRate(userId, ip) {
   const { max, windowMs, ipMax } = config.rateLimit.bids;
-
-  const replies = await redis
-    .pipeline()
-    .bpRateLimit(keys.bidRateUser(userId), String(now), String(windowMs), String(max), member)
-    .bpRateLimit(
-      keys.bidRateIp(ip || 'unknown'),
-      String(now),
-      String(windowMs),
-      String(ipMax),
-      member,
-    )
-    .exec();
-
-  for (const [err, reply] of replies) {
-    if (err) {
-      // A rate limiter that is down must not take bidding down with it.
-      log.warn('rate limit unavailable', { err: err.message });
-      return { allowed: true, retryAfterMs: 0 };
-    }
-    const parsed = parseRateReply(reply);
-    if (!parsed.allowed) return parsed;
-  }
-  return { allowed: true, retryAfterMs: 0 };
+  return consume([
+    { name: 'user', key: keys.bidRateUser(userId), max, windowMs },
+    { name: 'ip', key: keys.bidRateIp(ip || 'unknown'), max: ipMax, windowMs },
+  ]);
 }
 
 export async function placeBid({ item, bidder, amountCents, ip }) {
@@ -85,7 +63,7 @@ export async function placeBid({ item, bidder, amountCents, ip }) {
 
   const now = Date.now();
   const reply = parseBidReply(
-    await getRedis().bpBid(
+    await getRedis().ocBid(
       keys.itemState(itemId),
       bidderId,
       String(amountCents),

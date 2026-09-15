@@ -3,6 +3,8 @@ import { promisify } from 'node:util';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { User } from '../db/models/User.js';
+import { keys } from '../redis/keys.js';
+import { peek, record } from './rateLimit.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -73,11 +75,28 @@ export async function register({ email, password, displayName }) {
 }
 
 export async function login({ email, password }) {
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const address = email.toLowerCase();
+  const { accountMax, accountWindowMs } = config.rateLimit.auth;
+  const bucket = keys.authRateAccount(address);
+
+  // Checked before the password is, but only ever *charged* on a
+  // failure below - so a stranger cannot spend someone else's allowance
+  // and lock them out of their own account.
+  const gate = await peek([
+    { name: 'account', key: bucket, max: accountMax, windowMs: accountWindowMs },
+  ]);
+  if (!gate.allowed) {
+    return { error: 'rate_limited', retryAfterMs: gate.retryAfterMs };
+  }
+
+  const user = await User.findOne({ email: address });
   // Hash anyway on a miss so a missing account and a wrong password take
   // the same time to answer.
   const stored = user?.passwordHash ?? (await hashPassword(crypto.randomUUID()));
   const ok = await verifyPassword(password, stored);
-  if (!user || !ok) return { error: 'bad_credentials' };
+  if (!user || !ok) {
+    await record(bucket, accountWindowMs);
+    return { error: 'bad_credentials' };
+  }
   return { user, token: signToken(user) };
 }

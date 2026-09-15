@@ -43,6 +43,39 @@ export const config = {
       // It is there to stop one machine, not to punish a shared exit.
       ipMax: int(process.env.BID_RATE_IP_MAX, 12),
     },
+
+    // Sign-in and registration are the other end of the building: not
+    // hot paths, but the ones a credential-stuffing script goes at. The
+    // address bucket is the real defence. The per-account bucket is
+    // counted only on failures, because counting attempts would let
+    // anyone lock a stranger out of their own account by failing at it.
+    auth: {
+      ipMax: int(process.env.AUTH_RATE_IP_MAX, 20),
+      ipWindowMs: int(process.env.AUTH_RATE_IP_WINDOW_MS, 60_000),
+      accountMax: int(process.env.AUTH_RATE_ACCOUNT_MAX, 10),
+      accountWindowMs: int(process.env.AUTH_RATE_ACCOUNT_WINDOW_MS, 900_000),
+    },
+  },
+
+  // How long a replayed bid returns its original answer. Long enough to
+  // cover a phone changing networks mid-request, short enough that the
+  // keys do not accumulate.
+  idempotencyTtlMs: int(process.env.IDEMPOTENCY_TTL_MS, 10 * 60 * 1000),
+
+  // Where the emails point people back to.
+  appUrl: str(process.env.APP_URL, 'http://localhost:5175'),
+
+  tokens: {
+    verifyTtlMs: int(process.env.VERIFY_TTL_MS, 24 * 60 * 60 * 1000),
+    resetTtlMs: int(process.env.RESET_TTL_MS, 60 * 60 * 1000),
+  },
+
+  mail: {
+    // 'log' prints the message and moves on, so the whole flow works
+    // with nothing configured. 'resend' needs an API key.
+    driver: str(process.env.MAIL_DRIVER, 'log'),
+    from: str(process.env.MAIL_FROM, 'Oction <no-reply@oction.test>'),
+    resendApiKey: str(process.env.RESEND_API_KEY, ''),
   },
 
   // Fat-finger ceiling. An extra zero on a keyboard bid is a typo, and a

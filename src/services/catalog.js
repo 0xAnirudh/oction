@@ -13,7 +13,7 @@ const DAY_MS = 86_400_000;
 // view including one that lands mid-bid.
 export async function ensureRoomState(item) {
   const redis = getRedis();
-  const reply = await redis.bpEnsureState(
+  const reply = await redis.ocEnsureState(
     keys.itemState(item._id.toString()),
     item.status,
     item.sellerId.toString(),
@@ -109,7 +109,7 @@ export async function liveStatesFor(items) {
   const redis = getRedis();
   const pipeline = redis.pipeline();
   for (const item of live) {
-    pipeline.bpEnsureState(
+    pipeline.ocEnsureState(
       keys.itemState(item._id.toString()),
       item.status,
       item.sellerId.toString(),

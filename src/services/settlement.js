@@ -24,7 +24,7 @@ export async function closeAuction(itemId, { now = Date.now() } = {}) {
   if (item.status !== ITEM_STATUS.ACTIVE) return { done: true, code: 'not_active' };
 
   await ensureRoomState(item);
-  const reply = parseCloseReply(await getRedis().bpClose(keys.itemState(itemId), String(now)));
+  const reply = parseCloseReply(await getRedis().ocClose(keys.itemState(itemId), String(now)));
 
   if (reply.code === 'still_open') {
     return { done: false, code: 'still_open', endsAt: reply.endsAt };

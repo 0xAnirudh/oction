@@ -9,5 +9,8 @@ export const keys = {
   bidRateUser: (userId) => `${P}:rate:bid:u:${userId}`,
   bidRateIp: (ip) => `${P}:rate:bid:ip:${ip}`,
   mediaCache: (itemId) => `${P}:item:${itemId}:media`,
+  authRateIp: (ip) => `${P}:rate:auth:ip:${ip}`,
+  authRateAccount: (email) => `${P}:rate:auth:acct:${email}`,
+  idempotency: (userId, key) => `${P}:idem:${userId}:${key}`,
   room: (itemId) => `auction:${itemId}`,
 };
