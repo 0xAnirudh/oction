@@ -7,6 +7,9 @@ import { User } from '../db/models/User.js';
 import { AuctionItem } from '../db/models/AuctionItem.js';
 import { Bid } from '../db/models/Bid.js';
 import { Order } from '../db/models/Order.js';
+import { Watch } from '../db/models/Watch.js';
+import { Token } from '../db/models/Token.js';
+import { Dispute } from '../db/models/Dispute.js';
 import { hashPassword } from '../services/auth.js';
 import { ensureRoomState, cacheItemMedia } from '../services/catalog.js';
 import { ITEM_STATUS } from '../core/status.js';
@@ -115,13 +118,32 @@ const seller = await User.create({
   passwordHash,
   displayName: 'Rare Finds Co.',
   sellerStatus: 'verified',
+  emailVerified: true,
+  emailVerifiedAt: new Date(),
+});
+
+// Somebody has to be able to work the seller queue and the dispute
+// queue, or half the application is unreachable from a fresh seed.
+const staff = await User.create({
+  email: 'staff@oction.test',
+  passwordHash,
+  displayName: 'Oction Staff',
+  sellerStatus: 'verified',
+  emailVerified: true,
+  emailVerifiedAt: new Date(),
+  isAdmin: true,
 });
 
 const bidders = await User.create(
-  ['ana', 'ben', 'chi', 'dev'].map((name) => ({
+  ['ana', 'ben', 'chi', 'dev'].map((name, index) => ({
     email: `${name}@oction.test`,
     passwordHash,
     displayName: name[0].toUpperCase() + name.slice(1),
+    // One unconfirmed on purpose, so the gates around verification are
+    // something you can actually walk into rather than read about.
+    emailVerified: index > 0,
+    emailVerifiedAt: index > 0 ? new Date() : null,
+    sellerStatus: index === 1 ? 'pending' : 'unverified',
   })),
 );
 
@@ -160,8 +182,13 @@ log.info('seeded', { items: CATALOGUE.length, bidders: bidders.length });
 console.log(`
   Seeded ${CATALOGUE.length} live items.
 
-  seller   seller@oction.test
-  bidders  ana@ / ben@ / chi@ / dev@oction.test
+  staff    staff@oction.test      (admin - seller and dispute queues)
+  seller   seller@oction.test     (verified seller, owns the lots)
+  bidders  ana@ ben@ chi@ dev@oction.test
+
+  ana@ has NOT confirmed her address - use her to see the gates.
+  ben@ has a seller application waiting in the staff queue.
+
   password ${PASSWORD}
 `);
 
