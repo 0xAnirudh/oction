@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently -n api,workers,web -c cyan,yellow,magenta \"npm:dev:api\" \"npm:dev:workers\" \"npm:dev:web\"",
+    "dev": "node --env-file-if-exists=.env src/scripts/dev.mjs",
     "dev:api": "node --watch --env-file-if-exists=.env src/server.js",
     "dev:workers": "node --watch --env-file-if-exists=.env src/queue/run.js",
     "dev:web": "vite",
@@ -23,8 +23,8 @@
     "mongo:dev": "node src/scripts/mongo-dev.mjs",
     "loadtest:prepare": "node --env-file-if-exists=.env loadtest/prepare.mjs",
     "loadtest:k6": "k6 run loadtest/bid-storm.js",
-    "dev:offline": "MONGO_URI=mongodb://127.0.0.1:27017/oction npm run dev",
-    "seed:offline": "MONGO_URI=mongodb://127.0.0.1:27017/oction npm run seed"
+    "dev:offline": "FORCE_LOCAL_MONGO=1 npm run dev",
+    "dev:processes": "concurrently -n api,workers,web -c cyan,yellow,magenta \"npm:dev:api\" \"npm:dev:workers\" \"npm:dev:web\""
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",

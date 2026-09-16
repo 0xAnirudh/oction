@@ -6,29 +6,27 @@ clock and five hundred people trying to win the same rung.
 
 ```bash
 npm install
-npm run dev          # api :4200, workers, web :5175
+npm run dev
 ```
 
-One command, if Mongo is somewhere reachable - a `MONGO_URI` in `.env`
-pointing at Atlas, or a local server already running. Redis on 6379 is
-the other requirement, and on a Mac `brew services start redis` makes
-that a thing you never think about again.
+That is the whole thing. It settles Mongo before starting anything:
+uses the `MONGO_URI` in your `.env` if it answers, and if it does not,
+says why and starts a throwaway in-memory one with the catalogue
+seeded into it. Either way you end up at the api on :4200, the workers,
+and the web on :5175.
 
-With no Mongo at all, it is two terminals:
+The fallback is loud on purpose. A dev script that quietly swaps your
+database for an empty one has you debugging missing data instead of
+reading one line of output.
+
+Redis on 6379 is the one thing it does not arrange for you. On a Mac
+`brew services start redis` makes that something you never think about
+again.
 
 ```bash
-npm run mongo:dev      # an in-memory server on 27017, held open
+npm run dev:offline    # ignore MONGO_URI, always use the throwaway one
+docker compose up -d mongo   # a local mongo that survives a restart
 ```
-
-```bash
-npm run seed:offline   # once, to fill the catalogue
-npm run dev:offline
-```
-
-The in-memory server keeps nothing when you stop it, so the seed is
-part of starting up rather than a one-off. For a Mongo that survives a
-restart, `docker compose up -d mongo` instead, and the plain `npm run
-dev` will find it.
 
 Copy `.env.example` to `.env` to change anything; every value has a
 working default except `JWT_SECRET`, which you should set before this
