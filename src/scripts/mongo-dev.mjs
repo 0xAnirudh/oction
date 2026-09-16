@@ -13,7 +13,12 @@ const mongod = await MongoMemoryServer.create({
 });
 
 console.log(`mongo (in memory) listening on ${mongod.getUri()}`);
-console.log('ctrl-c to stop. data is not persisted.\n');
+console.log('ctrl-c to stop. data is not persisted.');
+console.log('');
+console.log('  in a second terminal:');
+console.log('    npm run seed:offline     (once, to fill the catalogue)');
+console.log('    npm run dev:offline');
+console.log('');
 
 const stop = async () => {
   await mongod.stop();

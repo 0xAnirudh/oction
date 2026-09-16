@@ -22,7 +22,9 @@
     "format": "prettier --write .",
     "mongo:dev": "node src/scripts/mongo-dev.mjs",
     "loadtest:prepare": "node --env-file-if-exists=.env loadtest/prepare.mjs",
-    "loadtest:k6": "k6 run loadtest/bid-storm.js"
+    "loadtest:k6": "k6 run loadtest/bid-storm.js",
+    "dev:offline": "MONGO_URI=mongodb://127.0.0.1:27017/oction npm run dev",
+    "seed:offline": "MONGO_URI=mongodb://127.0.0.1:27017/oction npm run seed"
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",

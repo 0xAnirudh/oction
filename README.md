@@ -6,14 +6,33 @@ clock and five hundred people trying to win the same rung.
 
 ```bash
 npm install
-npm run mongo:dev    # or: docker compose up -d mongo
-npm run seed
 npm run dev          # api :4200, workers, web :5175
 ```
 
-Needs Redis on 6379. Copy `.env.example` to `.env` if you want to change
-anything; every value has a working default except `JWT_SECRET`, which
-you should set before this is reachable by anyone else.
+One command, if Mongo is somewhere reachable - a `MONGO_URI` in `.env`
+pointing at Atlas, or a local server already running. Redis on 6379 is
+the other requirement, and on a Mac `brew services start redis` makes
+that a thing you never think about again.
+
+With no Mongo at all, it is two terminals:
+
+```bash
+npm run mongo:dev      # an in-memory server on 27017, held open
+```
+
+```bash
+npm run seed:offline   # once, to fill the catalogue
+npm run dev:offline
+```
+
+The in-memory server keeps nothing when you stop it, so the seed is
+part of starting up rather than a one-off. For a Mongo that survives a
+restart, `docker compose up -d mongo` instead, and the plain `npm run
+dev` will find it.
+
+Copy `.env.example` to `.env` to change anything; every value has a
+working default except `JWT_SECRET`, which you should set before this
+is reachable by anyone else.
 
 The seed puts six live lots on the board and prints the accounts to bid
 with.
