@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { ItemCard } from '../components/ItemCard.jsx';
-import { Button } from '../components/ui.jsx';
+import { Button, CardSkeleton, EmptyState } from '../components/ui.jsx';
 
 export function Watchlist() {
   const [items, setItems] = useState(null);
@@ -17,34 +17,39 @@ export function Watchlist() {
       .catch(() => setItems([]));
   }, []);
 
-  if (items === null) return <p className="py-16 text-sm text-graphite">Loading…</p>;
-
-  if (items.length === 0) {
-    return (
-      <div className="py-16">
-        <h1 className="display text-3xl text-ink">Nothing saved.</h1>
-        <p className="mt-2 max-w-md text-sm text-graphite">
-          Mark a lot to keep it here. You will get a note before anything on this list closes.
-        </p>
-        <Button to="/" variant="quiet" className="mt-6">
-          Browse the catalogue
-        </Button>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <div className="border-b border-rule pb-6">
-        <h1 className="display text-4xl text-ink">Watching</h1>
-        <p className="mt-2 text-sm text-graphite">Closing soonest first.</p>
+      <div className="pb-8">
+        <h1 className="display text-3xl text-ink sm:text-4xl">Watching</h1>
+        <p className="measure mt-3 text-sm text-graphite">
+          Closing soonest first. You get a note before anything on this list closes, provided your
+          address is confirmed.
+        </p>
       </div>
 
-      <div className="mt-10 grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <ItemCard key={item.id} item={item} offsetRef={offsetRef} />
-        ))}
-      </div>
+      {items === null ? (
+        <div className="grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState title="Nothing saved." action={<Button to="/">Browse the catalogue</Button>}>
+          Mark a lot to keep it here, and you will be told before it closes.
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-1 gap-x-8 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              className="rise"
+              style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
+            >
+              <ItemCard item={item} offsetRef={offsetRef} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

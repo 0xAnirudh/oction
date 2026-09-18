@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { parseAmount } from '../format.js';
-import { Button, Field, inputClass } from '../components/ui.jsx';
+import { Button, Field, inputClass, Banner } from '../components/ui.jsx';
 
 const CONDITIONS = ['Brand New', 'Like New', 'Used', 'Vintage'];
 
@@ -78,10 +78,10 @@ export function NewListing() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="display text-4xl text-ink">List an item</h1>
-      <p className="mt-2 text-sm text-graphite">
+      <h1 className="display text-3xl text-ink sm:text-4xl">List an item</h1>
+      <p className="measure mt-3 text-sm text-graphite">
         The reserve stays secret — bidders are told only whether it has been met. Photographs are
-        fixed once bidding starts.
+        fixed once bidding starts, because they are part of what people are bidding on.
       </p>
 
       <form onSubmit={submit} className="mt-10 space-y-6">
@@ -211,11 +211,20 @@ export function NewListing() {
           />
         </Field>
 
-        {error && <p className="text-sm text-live">{error}</p>}
+        {error && (
+          <div role="alert">
+            <Banner tone="live">{error}</Banner>
+          </div>
+        )}
 
-        <Button type="submit" size="lg" disabled={busy}>
-          {busy ? 'Listing…' : 'List the item'}
-        </Button>
+        <div className="border-t border-rule pt-6">
+          <Button type="submit" size="lg" busy={busy}>
+            List the item
+          </Button>
+          <p className="mt-2 text-xs text-graphite">
+            Once it opens, you cannot withdraw it or change its photographs.
+          </p>
+        </div>
       </form>
     </div>
   );

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { api } from '../api.js';
+import { BookmarkIcon } from './icons.jsx';
 
-// A saved lot, not the live watcher count. Optimistic: the mark flips
-// straight away and goes back if the server disagrees, because waiting
-// on a round trip to acknowledge a bookmark feels broken.
+// Optimistic: the mark flips straight away and goes back if the server
+// disagrees, because waiting on a round trip to acknowledge a bookmark
+// feels broken.
 export function WatchButton({ itemId, watching, onChange, size = 'md' }) {
   const [on, setOn] = useState(Boolean(watching));
   const [busy, setBusy] = useState(false);
@@ -38,21 +39,17 @@ export function WatchButton({ itemId, watching, onChange, size = 'md' }) {
       type="button"
       onClick={toggle}
       aria-pressed={on}
-      className={`inline-flex items-center gap-1.5 transition-colors ${
+      className={`inline-flex items-center gap-1.5 border px-2.5 py-1.5 transition-colors duration-200 ${
         size === 'sm' ? 'text-xs' : 'text-sm'
-      } ${on ? 'text-ink' : 'text-graphite hover:text-ink'}`}
+      } ${
+        failed
+          ? 'border-live text-live'
+          : on
+            ? 'border-ink text-ink'
+            : 'border-rule text-graphite hover:border-ink hover:text-ink'
+      }`}
     >
-      <svg
-        width={size === 'sm' ? 12 : 14}
-        height={size === 'sm' ? 12 : 14}
-        viewBox="0 0 16 16"
-        fill={on ? 'currentColor' : 'none'}
-        stroke="currentColor"
-        strokeWidth="1.5"
-        aria-hidden="true"
-      >
-        <path d="M3 2h10v12l-5-3.5L3 14V2Z" strokeLinejoin="round" />
-      </svg>
+      <BookmarkIcon on={on && !failed} size={size === 'sm' ? 12 : 14} />
       {failed ? 'Try again' : on ? 'Watching' : 'Watch'}
     </button>
   );

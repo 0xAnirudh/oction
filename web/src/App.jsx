@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Shell } from './components/Shell.jsx';
+import { Button, EmptyState, RowSkeleton } from './components/ui.jsx';
 import { useAuth } from './auth.jsx';
 import { Catalog } from './pages/Catalog.jsx';
 import { ItemRoom } from './pages/ItemRoom.jsx';
@@ -13,11 +14,17 @@ import { Settings } from './pages/Settings.jsx';
 import { Admin } from './pages/Admin.jsx';
 import { Verify } from './pages/Verify.jsx';
 import { Reset } from './pages/Reset.jsx';
+import { Terms, Privacy } from './pages/Legal.jsx';
 
 function Private({ children }) {
   const { user, ready } = useAuth();
   const location = useLocation();
-  if (!ready) return <p className="py-16 text-sm text-graphite">…</p>;
+  if (!ready)
+    return (
+      <div className="py-16">
+        <RowSkeleton />
+      </div>
+    );
   if (!user) return <Navigate to="/sign-in" state={{ from: location.pathname }} replace />;
   return children;
 }
@@ -32,6 +39,8 @@ export default function App() {
         <Route path="/sign-in" element={<SignIn />} />
         <Route path="/verify" element={<Verify />} />
         <Route path="/reset" element={<Reset />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route
           path="/watching"
           element={
@@ -83,10 +92,12 @@ export default function App() {
         <Route
           path="*"
           element={
-            <div className="py-16">
-              <h1 className="display text-3xl text-ink">No such page.</h1>
-              <p className="mt-2 text-sm text-graphite">The lot may have been withdrawn.</p>
-            </div>
+            <EmptyState
+              title="No such page."
+              action={<Button to="/">Back to the catalogue</Button>}
+            >
+              The lot may have been withdrawn, or the link may have outlived it.
+            </EmptyState>
           }
         />
       </Routes>

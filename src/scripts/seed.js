@@ -113,6 +113,11 @@ await fs.mkdir(uploads, { recursive: true });
 
 const passwordHash = await hashPassword(PASSWORD);
 
+// Seeded accounts agree to the terms the same way a registered one
+// does. Without this the settings page shows an account that somehow
+// exists without ever having accepted anything.
+const agreed = { termsAcceptedAt: new Date(), termsVersion: config.termsVersion };
+
 const seller = await User.create({
   email: 'seller@oction.test',
   passwordHash,
@@ -120,6 +125,7 @@ const seller = await User.create({
   sellerStatus: 'verified',
   emailVerified: true,
   emailVerifiedAt: new Date(),
+  ...agreed,
 });
 
 // Somebody has to be able to work the seller queue and the dispute
@@ -132,6 +138,7 @@ const staff = await User.create({
   emailVerified: true,
   emailVerifiedAt: new Date(),
   isAdmin: true,
+  ...agreed,
 });
 
 const bidders = await User.create(
@@ -144,6 +151,7 @@ const bidders = await User.create(
     emailVerified: index > 0,
     emailVerifiedAt: index > 0 ? new Date() : null,
     sellerStatus: index === 1 ? 'pending' : 'unverified',
+    ...agreed,
   })),
 );
 

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { formatCents, parseAmount } from '../format.js';
 import { Button, Banner, inputClass } from './ui.jsx';
 
@@ -42,7 +41,7 @@ export function BidPanel({ item, user, onBid, critical, closed }) {
 
   return (
     <div
-      className={`border-t-2 pt-5 transition-colors duration-500 ${
+      className={`border-t-2 pt-5 transition-colors duration-700 ${
         critical ? 'border-live' : 'border-ink'
       }`}
     >
@@ -51,7 +50,7 @@ export function BidPanel({ item, user, onBid, critical, closed }) {
           ? `${item.bidCount} ${item.bidCount === 1 ? 'bid' : 'bids'} · current`
           : 'Asking'}
       </p>
-      <p className="display figures mt-1 text-4xl text-ink">
+      <p className="display figures mt-1 text-3xl text-ink">
         {formatCents(item.currentHighestBidCents || item.startingPriceCents)}
       </p>
 
@@ -67,11 +66,9 @@ export function BidPanel({ item, user, onBid, critical, closed }) {
       {closed ? (
         <p className="mt-5 text-sm text-graphite">Bidding has closed on this lot.</p>
       ) : !user ? (
-        <div className="mt-5">
-          <Button to="/sign-in" size="lg" className="w-full">
-            Sign in to bid
-          </Button>
-        </div>
+        <Button to="/sign-in" size="lg" className="mt-5 w-full">
+          Sign in to bid
+        </Button>
       ) : isSeller ? (
         <p className="mt-5 text-sm text-graphite">This is your lot. You cannot bid on it.</p>
       ) : (
@@ -80,7 +77,8 @@ export function BidPanel({ item, user, onBid, critical, closed }) {
             size="lg"
             variant={critical ? 'live' : 'primary'}
             className="w-full"
-            disabled={busy || leading}
+            busy={busy}
+            disabled={leading}
             onClick={() => submit(minimum)}
           >
             {leading ? 'You are the highest bidder' : `Bid ${formatCents(minimum)}`}
@@ -90,12 +88,12 @@ export function BidPanel({ item, user, onBid, critical, closed }) {
             <button
               type="button"
               onClick={() => setShowCustom(true)}
-              className="text-sm text-graphite underline-offset-4 hover:text-ink hover:underline"
+              className="text-xs text-graphite underline-offset-4 transition-colors hover:text-ink hover:underline"
             >
               Bid a different amount
             </button>
           ) : (
-            <form onSubmit={submitCustom} className="flex gap-2">
+            <form onSubmit={submitCustom} className="rise flex gap-2">
               <input
                 className={inputClass}
                 value={custom}
@@ -105,13 +103,17 @@ export function BidPanel({ item, user, onBid, critical, closed }) {
                 aria-label="Bid amount"
                 autoFocus
               />
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" busy={busy}>
                 Bid
               </Button>
             </form>
           )}
 
-          {error && <p className="text-sm text-live">{error}</p>}
+          {error && (
+            <p role="alert" className="text-xs text-live">
+              {error}
+            </p>
+          )}
           <p className="text-xs text-graphite">
             Bids are binding. The next rung is {formatCents(minimum)}.
           </p>

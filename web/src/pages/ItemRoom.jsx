@@ -9,7 +9,9 @@ import { BidPanel } from '../components/BidPanel.jsx';
 import { BidLog } from '../components/BidLog.jsx';
 import { Countdown, useRemaining } from '../components/Countdown.jsx';
 import { WatchButton } from '../components/WatchButton.jsx';
-import { SpecRow, Button } from '../components/ui.jsx';
+import { ReportDialog } from '../components/ReportDialog.jsx';
+import { Button, SpecRow, Skeleton, Banner } from '../components/ui.jsx';
+import { EyeIcon, FlagIcon } from '../components/icons.jsx';
 
 const CLOSED = new Set(['ENDED', 'SETTLED', 'UNSOLD']);
 
@@ -21,11 +23,13 @@ export function ItemRoom() {
   const [watchers, setWatchers] = useState(0);
   const [arrivedSeq, setArrivedSeq] = useState(null);
   const [outcome, setOutcome] = useState(null);
+  const [reporting, setReporting] = useState(false);
   const [error, setError] = useState(null);
   const offsetRef = useRef(0);
 
   useEffect(() => {
     let live = true;
+    setItem(null);
     Promise.all([api.get(`/items/${id}`), api.get(`/items/${id}/bids`)])
       .then(([itemRes, bidRes]) => {
         if (!live) return;
@@ -47,7 +51,7 @@ export function ItemRoom() {
     const socket = getSocket();
 
     const onJoin = (state) => {
-      if (state?.error) return;
+      if (!state || state.error) return;
       offsetRef.current = state.serverNow - Date.now();
       setItem((prev) => (prev ? { ...prev, ...state, images: state.media ?? prev.images } : prev));
     };
@@ -123,9 +127,9 @@ export function ItemRoom() {
   const placeBid = useCallback(
     async (amountCents) => {
       const res = await api.post(`/items/${id}/bids`, { amountCents });
-      // The socket will deliver the same event to everyone including us,
-      // but the bidder should not wait a round trip to see their own bid
-      // land.
+      // The socket delivers the same event to everyone including us,
+      // but the bidder should not wait a round trip to see their own
+      // bid land.
       setItem((prev) =>
         prev
           ? {
@@ -145,7 +149,7 @@ export function ItemRoom() {
 
   if (error) {
     return (
-      <div className="py-16">
+      <div className="py-20">
         <p className="display text-2xl text-ink">That lot is not here.</p>
         <p className="mt-2 text-sm text-graphite">{error}</p>
         <Button to="/" variant="quiet" className="mt-6">
@@ -155,101 +159,183 @@ export function ItemRoom() {
     );
   }
 
-  if (!item) return <p className="py-16 text-sm text-graphite">Opening the room…</p>;
+  if (!item) {
+    return (
+      <div className="grid grid-cols-1 gap-x-12 gap-y-10 pb-24 lg:grid-cols-[1fr_21rem] lg:pb-0">
+        <div className="space-y-6">
+          <Skeleton className="aspect-4/3 w-full" />
+          <Skeleton className="h-10 w-3/4" />
+          <Skeleton className="h-4 w-full max-w-md" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-16 w-40" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   const youWon = outcome?.buyerId && user && outcome.buyerId === user.id;
 
   return (
-    <div className="grid grid-cols-1 gap-x-12 gap-y-10 lg:grid-cols-[1fr_22rem]">
-      <div>
-        <Carousel images={item.images} title={item.title} />
+    <>
+      {/* The one authored moment: crossing into the window where a bid
+          moves the close changes the temperature of the whole page,
+          rather than adding a badge to a corner of it. */}
+      {critical && (
+        <div className="breathing fixed inset-x-0 top-0 z-40 h-0.5 bg-live" aria-hidden="true" />
+      )}
 
-        <div className="mt-8 flex items-start justify-between gap-6">
-          <h1 className="display text-4xl leading-tight text-ink sm:text-5xl">{item.title}</h1>
-          {user && (
-            <WatchButton
-              itemId={item.id}
-              watching={item.watching}
-              onChange={(watching) => setItem((prev) => (prev ? { ...prev, watching } : prev))}
+      <div className="grid grid-cols-1 gap-x-12 gap-y-10 pb-24 lg:grid-cols-[1fr_21rem] lg:pb-0">
+        <div className="min-w-0">
+          <Carousel images={item.images} title={item.title} />
+
+          <div className="mt-8 flex flex-wrap items-start justify-between gap-4">
+            <h1 className="display max-w-2xl text-3xl leading-tight text-ink sm:text-4xl">
+              {item.title}
+            </h1>
+            {user && (
+              <div className="flex items-center gap-2">
+                <WatchButton
+                  itemId={item.id}
+                  watching={item.watching}
+                  onChange={(watching) => setItem((prev) => (prev ? { ...prev, watching } : prev))}
+                />
+                {item.sellerId !== user.id && (
+                  <button
+                    type="button"
+                    onClick={() => setReporting(true)}
+                    className="inline-flex items-center gap-1.5 border border-rule px-2.5 py-1.5 text-sm text-graphite transition-colors hover:border-live hover:text-live"
+                  >
+                    <FlagIcon size={14} />
+                    Report
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {item.description && (
+            <p className="measure mt-4 text-base leading-relaxed text-ink-soft">
+              {item.description}
+            </p>
+          )}
+
+          <dl className="mt-8 max-w-md">
+            <SpecRow label="Condition">{item.condition}</SpecRow>
+            <SpecRow label="Opened at">{formatCents(item.startingPriceCents)}</SpecRow>
+            {item.bidIncrementCents && (
+              <SpecRow label="Increment">{formatCents(item.bidIncrementCents)}</SpecRow>
+            )}
+            {item.hasReserve && (
+              <SpecRow label="Reserve">
+                <span className={item.reserveMet ? 'text-held' : 'text-graphite'}>
+                  {item.reserveMet ? 'Met' : 'Not met'}
+                </span>
+              </SpecRow>
+            )}
+            {item.shippingDetails?.shipsFrom && (
+              <SpecRow label="Ships from">{item.shippingDetails.shipsFrom}</SpecRow>
+            )}
+            {item.shippingDetails?.weightKg && (
+              <SpecRow label="Weight">{item.shippingDetails.weightKg} kg</SpecRow>
+            )}
+            <SpecRow label="Closes">{formatWhen(item.endTime)}</SpecRow>
+            {item.extensionCount > 0 && (
+              <SpecRow label="Extended">
+                {item.extensionCount} {item.extensionCount === 1 ? 'time' : 'times'}
+              </SpecRow>
+            )}
+          </dl>
+
+          <section className="mt-14">
+            <div className="flex items-baseline justify-between border-b border-rule pb-2">
+              <h2 className="display-sm text-lg text-ink">Bidding</h2>
+              <Link
+                to={`/lot/${id}/audit`}
+                className="text-xs text-graphite underline-offset-4 transition-colors hover:text-ink hover:underline"
+              >
+                Full log
+              </Link>
+            </div>
+            <BidLog bids={bids.slice(0, 40)} youId={user?.id} arrivedSeq={arrivedSeq} />
+          </section>
+        </div>
+
+        <aside className="lg:sticky lg:top-24 lg:self-start">
+          <div className="mb-5">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-xs text-graphite">{closed ? 'Closed' : 'Time remaining'}</p>
+              {watchers > 0 && (
+                <p className="flex items-center gap-1.5 text-xs text-graphite">
+                  <EyeIcon size={13} />
+                  <span className="figures">{watchers}</span>
+                </p>
+              )}
+            </div>
+            <Countdown remaining={remaining} critical={critical} size="lg" className="mt-1" />
+          </div>
+
+          {youWon ? (
+            <div className="border-t-2 border-held pt-5">
+              <p className="display text-2xl text-held">You won this lot.</p>
+              <p className="mt-2 text-sm text-graphite">
+                {formatCents(outcome.amountCents)} — confirm your address and pay before the hold
+                expires.
+              </p>
+              <Button to="/orders" size="lg" className="mt-5 w-full">
+                Complete checkout
+              </Button>
+            </div>
+          ) : (
+            <BidPanel
+              item={{ ...item, yourBids }}
+              user={user}
+              onBid={placeBid}
+              critical={critical}
+              closed={closed}
             />
           )}
-        </div>
-        {item.description && (
-          <p className="mt-4 max-w-prose text-[15px] leading-relaxed text-graphite">
-            {item.description}
-          </p>
-        )}
 
-        <dl className="mt-8 max-w-md">
-          <SpecRow label="Condition">{item.condition}</SpecRow>
-          <SpecRow label="Opened at">{formatCents(item.startingPriceCents)}</SpecRow>
-          {item.bidIncrementCents && (
-            <SpecRow label="Increment">{formatCents(item.bidIncrementCents)}</SpecRow>
+          {closed && item.status === 'UNSOLD' && (
+            <div className="mt-5">
+              <Banner>This lot did not sell.</Banner>
+            </div>
           )}
-          {item.hasReserve && (
-            <SpecRow label="Reserve">{item.reserveMet ? 'Met' : 'Not met'}</SpecRow>
-          )}
-          {item.shippingDetails?.shipsFrom && (
-            <SpecRow label="Ships from">{item.shippingDetails.shipsFrom}</SpecRow>
-          )}
-          {item.shippingDetails?.weightKg && (
-            <SpecRow label="Weight">{item.shippingDetails.weightKg} kg</SpecRow>
-          )}
-          <SpecRow label="Closes">{formatWhen(item.endTime)}</SpecRow>
-          {item.extensionCount > 0 && (
-            <SpecRow label="Extended">
-              {item.extensionCount} {item.extensionCount === 1 ? 'time' : 'times'}
-            </SpecRow>
-          )}
-        </dl>
-
-        <section className="mt-12">
-          <div className="flex items-baseline justify-between border-b border-rule pb-2">
-            <h2 className="display text-xl text-ink">Bidding</h2>
-            <Link to={`/lot/${id}/audit`} className="text-xs text-graphite hover:text-ink">
-              Full log
-            </Link>
-          </div>
-          <BidLog bids={bids.slice(0, 40)} youId={user?.id} arrivedSeq={arrivedSeq} />
-        </section>
+        </aside>
       </div>
 
-      <aside className="lg:sticky lg:top-8 lg:self-start">
-        <div
-          className={`mb-5 flex items-baseline justify-between ${critical ? 'critical-rule' : ''}`}
-        >
-          <div>
-            <p className="text-xs text-graphite">{closed ? 'Closed' : 'Time remaining'}</p>
-            <Countdown remaining={remaining} critical={critical} size="lg" />
+      {/* On a phone the rail is a screen and a half below the fold, so
+          the two things that matter - what it stands at and how long is
+          left - come back to the thumb. Hidden the moment there is room
+          for the rail proper. */}
+      {!closed && !youWon && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-paper/95 backdrop-blur-sm lg:hidden">
+          <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-3">
+            <div className="min-w-0 flex-1">
+              <Countdown remaining={remaining} critical={critical} size="md" />
+              <p className="figures truncate text-xs text-graphite">
+                {formatCents(item.currentHighestBidCents || item.startingPriceCents)}
+                {item.bidCount > 0 && ` · ${item.bidCount} bids`}
+              </p>
+            </div>
+            {user && item.sellerId !== user.id && (
+              <Button
+                variant={critical ? 'live' : 'primary'}
+                disabled={item.currentWinner === user.id}
+                onClick={() => placeBid(item.nextMinimumCents).catch(() => {})}
+              >
+                {item.currentWinner === user.id
+                  ? 'You lead'
+                  : `Bid ${formatCents(item.nextMinimumCents)}`}
+              </Button>
+            )}
+            {!user && <Button to="/sign-in">Sign in to bid</Button>}
           </div>
-          {watchers > 0 && <p className="figures text-xs text-graphite">{watchers} watching</p>}
         </div>
+      )}
 
-        {youWon ? (
-          <div className="border-t-2 border-held pt-5">
-            <p className="display text-2xl text-held">You won this lot.</p>
-            <p className="mt-2 text-sm text-graphite">
-              {formatCents(outcome.amountCents)} — confirm your address and pay before the hold
-              expires.
-            </p>
-            <Button to="/orders" size="lg" className="mt-5 w-full">
-              Complete checkout
-            </Button>
-          </div>
-        ) : (
-          <BidPanel
-            item={{ ...item, yourBids }}
-            user={user}
-            onBid={placeBid}
-            critical={critical}
-            closed={closed}
-          />
-        )}
-
-        {closed && item.status === 'UNSOLD' && (
-          <p className="mt-5 text-sm text-graphite">This lot did not sell.</p>
-        )}
-      </aside>
-    </div>
+      <ReportDialog itemId={item.id} open={reporting} onClose={() => setReporting(false)} />
+    </>
   );
 }
