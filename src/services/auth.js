@@ -5,6 +5,8 @@ import { config } from '../config.js';
 import { User } from '../db/models/User.js';
 import { keys } from '../redis/keys.js';
 import { peek, record } from './rateLimit.js';
+import { startSession, sessionFor, touch } from './sessions.js';
+import { hashIp } from './privacy.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -43,9 +45,12 @@ export async function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(derived, expected);
 }
 
+// A token with no session behind it. Kept for the one caller that has
+// no request context to attach a device to; everything a person signs
+// into goes through startSession instead.
 export function signToken(user) {
   // `ms` alongside the standard `iat`, because `iat` is whole seconds
-  // and the session cutoff is not. Without it, every token minted in
+  // and the account cutoff is not. Without it, every token minted in
   // the same second as a password reset outlives the reset - a one
   // second hole in the only mechanism that can end a session early.
   return jwt.sign({ sub: user._id.toString(), ms: Date.now() }, config.jwtSecret, {
@@ -68,6 +73,9 @@ export async function userFromToken(token) {
   const user = await User.findById(payload.sub);
   if (!user) return null;
 
+  // A closed account is not a way back in.
+  if (user.deletedAt) return null;
+
   // A JWT cannot be recalled, but it can be outrun. Anything issued
   // before the account's cutoff is refused, which is what makes a
   // password reset actually sign out the other devices rather than
@@ -78,16 +86,28 @@ export async function userFromToken(token) {
     if (issued < cutoff) return null;
   }
 
+  // The finer check: this particular device may have been signed out
+  // while the rest of the account's sessions stayed live.
+  const { ok, session } = await sessionFor(payload);
+  if (!ok) return null;
+  touch(session);
+
+  user.currentJti = payload.jti ?? null;
   return user;
 }
 
-export async function register({ email, password, displayName }) {
+export async function register({ email, password, displayName }, context = {}) {
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) return { error: 'email_taken' };
+
   const user = await User.create({
     email: email.toLowerCase(),
     passwordHash: await hashPassword(password),
     displayName,
+    // Recorded at the moment of agreement, with the version agreed to.
+    termsAcceptedAt: new Date(),
+    termsVersion: config.termsVersion,
+    signupIpHash: hashIp(context.ip),
   });
 
   // Imported here rather than at the top: accounts.js imports
@@ -96,10 +116,11 @@ export async function register({ email, password, displayName }) {
   const { sendVerification } = await import('./accounts.js');
   await sendVerification(user).catch(() => {});
 
-  return { user, token: signToken(user) };
+  const { token } = await startSession(user, context);
+  return { user, token };
 }
 
-export async function login({ email, password }) {
+export async function login({ email, password }, context = {}) {
   const address = email.toLowerCase();
   const { accountMax, accountWindowMs } = config.rateLimit.auth;
   const bucket = keys.authRateAccount(address);
@@ -123,5 +144,13 @@ export async function login({ email, password }) {
     await record(bucket, accountWindowMs);
     return { error: 'bad_credentials' };
   }
-  return { user, token: signToken(user) };
+  // A closed account answers the same as a wrong password. Saying
+  // "that account was deleted" confirms it existed.
+  if (user.deletedAt) {
+    await record(bucket, accountWindowMs);
+    return { error: 'bad_credentials' };
+  }
+
+  const { token } = await startSession(user, context);
+  return { user, token };
 }

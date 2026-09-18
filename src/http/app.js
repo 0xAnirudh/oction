@@ -16,7 +16,10 @@ export function createApp() {
 
   // Behind a proxy req.ip is the load balancer, and a per-IP rate limit
   // against the load balancer limits the whole site to two bids a second.
-  app.set('trust proxy', config.isProduction ? 1 : false);
+  // The number of proxies in front of us, not `true`. Trusting any
+  // client that sends an X-Forwarded-For header hands the rate limiter
+  // a value the caller chose.
+  app.set('trust proxy', config.trustProxyHops > 0 ? config.trustProxyHops : false);
   app.disable('x-powered-by');
 
   app.use(express.json({ limit: '256kb' }));

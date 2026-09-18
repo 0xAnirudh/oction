@@ -15,9 +15,11 @@ export function SignIn() {
     displayName: '',
   });
   const [error, setError] = useState(null);
+  const [sentReset, setSentReset] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const registering = mode === 'up';
+  const forgetting = mode === 'forgot';
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   async function submit(event) {

@@ -41,6 +41,11 @@ const bidSchema = new mongoose.Schema(
     // Server clock at the moment Redis accepted it, not at the moment
     // the row was written.
     placedAt: { type: Date, required: true },
+
+    // Salted digest of the bidder's address, never the address. It is
+    // what lets integrity.js notice a seller bidding on their own lots
+    // from a second account without the system holding anyone's IP.
+    ipHash: { type: String, default: null },
     // What the bid did to the closing time, if anything.
     extendedEndTimeTo: { type: Date, default: null },
   },

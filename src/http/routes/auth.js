@@ -10,7 +10,10 @@ import {
   requestResetSchema,
   resetPasswordSchema,
 } from '../schemas.js';
-import { login, register, signToken } from '../../services/auth.js';
+import { login, register } from '../../services/auth.js';
+import { startSession, listSessions, revokeSession, revokeAll } from '../../services/sessions.js';
+import { erasureBlockers, eraseAccount, BLOCKER_TEXT } from '../../services/erasure.js';
+import { config } from '../../config.js';
 import {
   confirmVerification,
   requestPasswordReset,
@@ -21,7 +24,10 @@ import {
 export const authRouter = Router();
 
 authRouter.post('/auth/register', authRateLimit, validate(registerSchema), async (req, res) => {
-  const result = await register(req.valid.body);
+  const result = await register(req.valid.body, {
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  });
   if (result.error) {
     return res.status(409).json({
       error: result.error,
@@ -32,7 +38,10 @@ authRouter.post('/auth/register', authRateLimit, validate(registerSchema), async
 });
 
 authRouter.post('/auth/login', authRateLimit, validate(loginSchema), async (req, res) => {
-  const result = await login(req.valid.body);
+  const result = await login(req.valid.body, {
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  });
   if (result.error === 'rate_limited') {
     res.set('Retry-After', String(Math.ceil((result.retryAfterMs ?? 60_000) / 1000)));
     return res.status(429).json({
@@ -106,7 +115,11 @@ authRouter.post(
     }
     // A fresh session for the device that did the reset; every other
     // token for this account is now refused.
-    res.json({ token: signToken(result.user), user: result.user.toSelf() });
+    const { token } = await startSession(result.user, {
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+    res.json({ token, user: result.user.toSelf() });
   },
 );
 
@@ -143,4 +156,58 @@ authRouter.post('/me/seller-application', requireAuth, async (req, res) => {
   req.user.sellerStatus = 'pending';
   await req.user.save();
   res.json({ user: req.user.toSelf() });
+});
+
+// --- terms -----------------------------------------------------------
+
+authRouter.post('/me/accept-terms', requireAuth, async (req, res) => {
+  req.user.termsAcceptedAt = new Date();
+  req.user.termsVersion = config.termsVersion;
+  await req.user.save();
+  res.json({ user: req.user.toSelf() });
+});
+
+// --- sessions --------------------------------------------------------
+
+authRouter.get('/me/sessions', requireAuth, async (req, res) => {
+  const sessions = await listSessions(req.user._id);
+  res.json({
+    sessions: sessions.map((s) => s.toPublic(req.user.currentJti)),
+    serverNow: Date.now(),
+  });
+});
+
+authRouter.delete('/me/sessions/:id', requireAuth, async (req, res) => {
+  const done = await revokeSession(req.user._id, req.params.id);
+  if (!done) return res.status(404).json({ error: 'not_found' });
+  res.json({ ok: true });
+});
+
+// Everything except the device asking. Signing yourself out of the
+// device you are holding would be a surprising thing for a button
+// labelled "sign out everywhere else" to do.
+authRouter.delete('/me/sessions', requireAuth, async (req, res) => {
+  const ended = await revokeAll(req.user._id, { exceptJti: req.user.currentJti });
+  res.json({ ended });
+});
+
+// --- closing an account ----------------------------------------------
+
+authRouter.get('/me/deletion', requireAuth, async (req, res) => {
+  const blockers = await erasureBlockers(req.user);
+  res.json({
+    canDelete: blockers.length === 0,
+    blockers: blockers.map((b) => ({ ...b, message: BLOCKER_TEXT[b.code] })),
+  });
+});
+
+authRouter.delete('/me', requireAuth, async (req, res) => {
+  const result = await eraseAccount(req.user);
+  if (result.error) {
+    return res.status(409).json({
+      error: result.error,
+      blockers: result.blockers.map((b) => ({ ...b, message: BLOCKER_TEXT[b.code] })),
+    });
+  }
+  res.json({ closed: true });
 });

@@ -3,6 +3,7 @@ import { getRedis } from '../redis/client.js';
 import { keys } from '../redis/keys.js';
 import { parseBidReply } from '../redis/scripts.js';
 import { consume } from './rateLimit.js';
+import { hashIp } from './privacy.js';
 import { Bid } from '../db/models/Bid.js';
 import { AuctionItem } from '../db/models/AuctionItem.js';
 import { ensureRoomState } from './catalog.js';
@@ -101,6 +102,7 @@ export async function placeBid({ item, bidder, amountCents, ip }) {
       amountCents,
       seq: reply.seq,
       placedAt,
+      ipHash: hashIp(ip),
       extendedEndTimeTo: reply.extended ? endTime : null,
     });
   } catch (err) {

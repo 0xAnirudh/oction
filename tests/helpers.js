@@ -43,6 +43,7 @@ export async function makeUser(app, { seller = false, admin = false, verified = 
     email,
     password: 'a-long-enough-password',
     displayName: `Person ${counter}`,
+    acceptTerms: true,
   });
   if (res.status !== 201)
     throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);

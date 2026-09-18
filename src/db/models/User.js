@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import { config } from '../../config.js';
+
+const CURRENT_TERMS = config.termsVersion;
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,6 +28,21 @@ const userSchema = new mongoose.Schema(
 
     emailVerified: { type: Boolean, default: false },
     emailVerifiedAt: { type: Date, default: null },
+
+    // Which terms, and when. A bid is described as binding, and that is
+    // not a claim you can make without a record of what the person
+    // agreed to and when they agreed to it.
+    termsAcceptedAt: { type: Date, default: null },
+    termsVersion: { type: String, default: null },
+
+    // Closed accounts are anonymised, not removed - see
+    // services/erasure.js for why the bid log has to survive it.
+    deletedAt: { type: Date, default: null },
+
+    // Salted digest of the address the account was opened from. Used to
+    // notice a seller bidding on their own lots through a second
+    // account; never the address itself.
+    signupIpHash: { type: String, default: null },
 
     // Every token issued before this moment is refused. It is the whole
     // revocation mechanism: a JWT cannot be taken back, but it can be
@@ -70,6 +88,8 @@ userSchema.methods.toSelf = function toSelf() {
     email: this.email,
     isAdmin: this.isAdmin,
     emailVerified: this.emailVerified,
+    termsAcceptedAt: this.termsAcceptedAt,
+    termsCurrent: this.termsVersion === CURRENT_TERMS,
     notify: {
       outbid: this.notify?.outbid ?? true,
       won: this.notify?.won ?? true,

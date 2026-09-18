@@ -9,7 +9,8 @@ import { config } from '../../config.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth, requireSeller } from '../middleware/authenticate.js';
 import { uploadImages } from '../middleware/upload.js';
-import { browseSchema, createItemSchema } from '../schemas.js';
+import { browseSchema, createItemSchema, reportItemSchema } from '../schemas.js';
+import { Report } from '../../db/models/Report.js';
 import {
   cacheItemMedia,
   ensureRoomState,
@@ -247,4 +248,37 @@ itemsRouter.delete('/items/:id/images/:handle', requireSeller, async (req, res) 
     .remove(handle)
     .catch((err) => log.warn('image delete failed', { handle, err: err.message }));
   res.json({ images: item.toPublic().images });
+});
+
+// Reporting a listing, as distinct from disputing an order. Anyone who
+// can see a lot can report it - that is the point of it, and waiting
+// until somebody has bought a counterfeit is too late.
+itemsRouter.post('/items/:id/report', requireAuth, validate(reportItemSchema), async (req, res) => {
+  if (!isObjectId(req.params.id)) return res.status(404).json({ error: 'not_found' });
+  const item = await AuctionItem.findById(req.params.id).select('_id sellerId');
+  if (!item) return res.status(404).json({ error: 'not_found' });
+  if (item.sellerId.toString() === req.user._id.toString()) {
+    return res.status(409).json({ error: 'own_item', message: 'This is your own listing.' });
+  }
+
+  try {
+    const report = await Report.create({
+      itemId: item._id,
+      reporterId: req.user._id,
+      reason: req.valid.body.reason,
+      detail: req.valid.body.detail,
+    });
+    log.info('item reported', { itemId: item._id.toString(), reason: report.reason });
+    return res.status(201).json({ report: report.toPublic() });
+  } catch (err) {
+    // One open report per person per lot: reporting twice is not two
+    // reports, and a pile-on should not read as corroboration.
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        error: 'already_reported',
+        message: 'You have already reported this lot.',
+      });
+    }
+    throw err;
+  }
 });

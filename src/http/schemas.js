@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { CONDITIONS } from '../core/status.js';
 import { DISPUTE_REASONS } from '../db/models/Dispute.js';
+import { REPORT_REASONS } from '../db/models/Report.js';
 
 const cents = z.number().int().min(1).max(config.maxBidCents);
 
@@ -9,6 +10,11 @@ export const registerSchema = z.object({
   email: z.email(),
   password: z.string().min(10).max(200),
   displayName: z.string().min(2).max(40),
+  // Refused rather than defaulted. A bid is described as binding, and
+  // an agreement nobody actively made is not one you can hold anyone to.
+  acceptTerms: z.literal(true, {
+    message: 'You have to accept the terms to open an account.',
+  }),
 });
 
 export const loginSchema = z.object({
@@ -33,6 +39,18 @@ export const notifyPrefsSchema = z.object({
   outbid: z.boolean().optional(),
   won: z.boolean().optional(),
   closingSoon: z.boolean().optional(),
+});
+
+export const reportItemSchema = z.object({
+  reason: z.enum(REPORT_REASONS),
+  detail: z.string().max(2000).default(''),
+});
+
+export const resolveReportSchema = z.object({
+  outcome: z.enum(['uphold', 'dismiss']),
+  note: z.string().max(2000).default(''),
+  // Upholding a report usually means the lot should come down too.
+  withdrawItem: z.boolean().default(false),
 });
 
 export const openDisputeSchema = z.object({

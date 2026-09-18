@@ -7,7 +7,14 @@ import { Dispute, DISPUTE_STATUS } from '../../db/models/Dispute.js';
 import { ITEM_STATUS, ORDER_STATUS } from '../../core/status.js';
 import { requireAdmin } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validate.js';
-import { resolveDisputeSchema, sellerDecisionSchema, withdrawItemSchema } from '../schemas.js';
+import {
+  resolveDisputeSchema,
+  resolveReportSchema,
+  sellerDecisionSchema,
+  withdrawItemSchema,
+} from '../schemas.js';
+import { Report, REPORT_STATUS } from '../../db/models/Report.js';
+import { flaggedSellers, shillSignals } from '../../services/integrity.js';
 import { withdrawItem } from '../../services/settlement.js';
 import { log } from '../../log.js';
 
@@ -19,13 +26,21 @@ adminRouter.use('/admin', requireAdmin);
 const isObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 adminRouter.get('/admin/overview', async (_req, res) => {
-  const [pendingSellers, openDisputes, liveItems, pendingOrders] = await Promise.all([
+  const [pendingSellers, openDisputes, liveItems, pendingOrders, openReports] = await Promise.all([
     User.countDocuments({ sellerStatus: 'pending' }),
     Dispute.countDocuments({ status: DISPUTE_STATUS.OPEN }),
     AuctionItem.countDocuments({ status: ITEM_STATUS.ACTIVE }),
     Order.countDocuments({ status: ORDER_STATUS.PENDING }),
+    Report.countDocuments({ status: REPORT_STATUS.OPEN }),
   ]);
-  res.json({ pendingSellers, openDisputes, liveItems, pendingOrders, serverNow: Date.now() });
+  res.json({
+    pendingSellers,
+    openDisputes,
+    liveItems,
+    pendingOrders,
+    openReports,
+    serverNow: Date.now(),
+  });
 });
 
 // --- seller verification ------------------------------------------
@@ -145,3 +160,89 @@ adminRouter.post(
     res.json({ dispute: dispute.toPublic() });
   },
 );
+
+// --- reported listings ----------------------------------------------
+
+adminRouter.get('/admin/reports', async (req, res) => {
+  const status = Object.values(REPORT_STATUS).includes(req.query.status)
+    ? req.query.status
+    : REPORT_STATUS.OPEN;
+
+  const reports = await Report.find({ status }).sort({ createdAt: 1 }).limit(100);
+  const items = await AuctionItem.find({ _id: { $in: reports.map((r) => r.itemId) } });
+  const byId = new Map(items.map((i) => [i._id.toString(), i]));
+
+  // Several people reporting the same lot is the signal worth surfacing,
+  // so the count travels with each row.
+  const counts = await Report.aggregate([
+    { $match: { status: REPORT_STATUS.OPEN } },
+    { $group: { _id: '$itemId', total: { $sum: 1 } } },
+  ]);
+  const countBy = new Map(counts.map((c) => [c._id.toString(), c.total]));
+
+  res.json({
+    reports: reports.map((r) => ({
+      ...r.toPublic(),
+      item: byId.get(r.itemId.toString())?.toPublic() ?? null,
+      reportsOnThisItem: countBy.get(r.itemId.toString()) ?? 1,
+    })),
+  });
+});
+
+adminRouter.post('/admin/reports/:id/resolve', validate(resolveReportSchema), async (req, res) => {
+  if (!isObjectId(req.params.id)) return res.status(404).json({ error: 'not_found' });
+  const report = await Report.findById(req.params.id);
+  if (!report) return res.status(404).json({ error: 'not_found' });
+  if (report.status !== REPORT_STATUS.OPEN) {
+    return res.status(409).json({ error: 'already_resolved' });
+  }
+
+  const upheld = req.valid.body.outcome === 'uphold';
+  report.status = upheld ? REPORT_STATUS.UPHELD : REPORT_STATUS.DISMISSED;
+  report.note = req.valid.body.note;
+  report.resolvedAt = new Date();
+  report.resolvedBy = req.user._id;
+  await report.save();
+
+  let withdrawn = false;
+  if (upheld && req.valid.body.withdrawItem) {
+    const item = await AuctionItem.findById(report.itemId);
+    if (item) {
+      const result = await withdrawItem(
+        item,
+        `report upheld: ${report.reason}`,
+        req.user._id.toString(),
+      );
+      withdrawn = !result.error;
+      // Everything else open against the same lot is decided by this.
+      if (withdrawn) {
+        await Report.updateMany(
+          { itemId: item._id, status: REPORT_STATUS.OPEN },
+          {
+            $set: {
+              status: REPORT_STATUS.UPHELD,
+              resolvedAt: new Date(),
+              resolvedBy: req.user._id,
+              note: 'Resolved with the listing withdrawal.',
+            },
+          },
+        );
+      }
+    }
+  }
+
+  res.json({ report: report.toPublic(), withdrawn });
+});
+
+// --- auction integrity ------------------------------------------------
+
+adminRouter.get('/admin/integrity', async (_req, res) => {
+  const sellers = await flaggedSellers();
+  res.json({ sellers });
+});
+
+adminRouter.get('/admin/integrity/sellers/:id', async (req, res) => {
+  if (!isObjectId(req.params.id)) return res.status(404).json({ error: 'not_found' });
+  const result = await shillSignals(req.params.id);
+  res.json(result);
+});

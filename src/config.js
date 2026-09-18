@@ -72,6 +72,23 @@ export const config = {
     closingSoonLeadMs: int(process.env.CLOSING_SOON_LEAD_MS, 5 * 60 * 1000),
   },
 
+  // Bumping this asks everyone to accept again the next time they act.
+  // The version people agreed to is stored with their acceptance, so
+  // "which terms did they actually agree to" has an answer.
+  termsVersion: str(process.env.TERMS_VERSION, '2026-09-18'),
+
+  // Behind a proxy, req.ip is the load balancer unless Express is told
+  // how many hops to trust - and a per-IP limit against the balancer
+  // throttles the whole site. Set this to the number of proxies in
+  // front of the app, not to `true`, which trusts any client that sends
+  // an X-Forwarded-For header.
+  trustProxyHops: int(process.env.TRUST_PROXY_HOPS, 0),
+
+  // Salts the hash of a bidder's address. Correlating two accounts that
+  // bid from the same place does not require keeping anyone's address,
+  // and a salted digest cannot be reversed into one.
+  ipHashSecret: str(process.env.IP_HASH_SECRET, ''),
+
   tokens: {
     verifyTtlMs: int(process.env.VERIFY_TTL_MS, 24 * 60 * 60 * 1000),
     resetTtlMs: int(process.env.RESET_TTL_MS, 60 * 60 * 1000),
